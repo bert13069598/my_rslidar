@@ -1,0 +1,9 @@
+<launch>
+  <node pkg="rslidar_sdk" name="rslidar_sdk_node" type="rslidar_sdk_node">
+    <param name="config_path" value=""/>
+  </node>
+  <node pkg="my_rslidar" name="filter_node" type="filter_node.py" output="screen" />
+  <!-- rviz -->
+  <node pkg="rviz" name="rviz_sdk" type="rviz" args="-d $(find rslidar_sdk)/rviz/rviz.rviz" />
+  <node pkg="rviz" name="rviz_dynamic" type="rviz" args="-d $(find my_rslidar)/rviz/rviz.rviz" />
+</launch>
