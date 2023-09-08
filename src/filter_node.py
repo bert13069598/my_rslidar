@@ -2,9 +2,7 @@
 
 import rospy
 from sensor_msgs.msg import PointCloud2
-import pcl
 import struct
-import numpy as np
 
 def callback(msg):
     # get field information from pcd msg
