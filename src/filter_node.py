@@ -3,34 +3,61 @@
 import rospy
 from sensor_msgs.msg import PointCloud2
 import pcl
+import struct
+import numpy as np
 
 def callback(msg):
-    # 포인트 클라우드 메시지에서 필드 정보를 가져옵니다.
+    # get field information from pcd msg
     fields = msg.fields
 
-    # 필요한 필드 인덱스를 찾습니다 (예: 'x', 'y', 'z' 필드를 가져옵니다).
-    x_idx = next((i for i, f in enumerate(fields) if f.name == 'x'), None)
-    y_idx = next((i for i, f in enumerate(fields) if f.name == 'y'), None)
-    z_idx = next((i for i, f in enumerate(fields) if f.name == 'z'), None)
+    # find field index
+    x_offset = next((f.offset for f in fields if f.name == 'x'), None)         # 0
+    y_offset = next((f.offset for f in fields if f.name == 'y'), None)         # 1
+    z_offset = next((f.offset for f in fields if f.name == 'z'), None)         # 2
+    i_offset = next((f.offset for f in fields if f.name == 'intensity'), None) # 3
 
-    
-    rospy.loginfo(f"Point size {msg.header.seq}")
+    rospy.loginfo(f"seqence {msg.header.seq}")
 
-
-    if x_idx is not None and y_idx is not None and z_idx is not None:
-        # 데이터 배열에서 x, y, z 값을 가져옵니다.
+    if x_offset is not None and y_offset is not None and z_offset is not None and i_offset is not None:
+        # get x, y, z, intensity from data array
         data = msg.data
-        point_size = len(fields)
-        point_count = len(data) // point_size
-        
-        rospy.loginfo(f"Point size {point_count}")
+        offset = len(fields) * 4
+        points_num = len(data) // 32 // offset
 
-        for i in range(point_count):
-            x = data[i * point_size + x_idx]
-            y = data[i * point_size + y_idx]
-            z = data[i * point_size + z_idx]
+        rospy.loginfo(f"points num  {points_num}")
 
-            # rospy.loginfo(f"Point {i+1}: x={x}, y={y}, z={z}")
+        modified_data = bytearray()
+
+        for i in range(len(data)//offset):
+            x = struct.unpack('f', data[i * offset + x_offset:i * offset + x_offset + 4])[0]
+            y = struct.unpack('f', data[i * offset + y_offset:i * offset + y_offset + 4])[0]
+            z = struct.unpack('f', data[i * offset + z_offset:i * offset + z_offset + 4])[0]
+            intensity = struct.unpack('f', data[i * offset + i_offset:i * offset + i_offset + 4])[0]
+
+            # print(x,y,z,intensity)
+
+            z *= 10
+
+            modified_data.extend(struct.pack('f', x))
+            modified_data.extend(struct.pack('f', y))
+            modified_data.extend(struct.pack('f', z))
+            modified_data.extend(struct.pack('f', intensity))
+            
+        # create new PointCloud2 data based on modified data
+        pub_msg = PointCloud2()
+        pub_msg.header = msg.header
+        pub_msg.fields = msg.fields
+        pub_msg.height = msg.height
+        pub_msg.width = msg.width
+        pub_msg.is_bigendian = msg.is_bigendian
+        pub_msg.point_step = msg.point_step
+        pub_msg.row_step = msg.row_step
+        pub_msg.is_dense = msg.is_dense
+        pub_msg.data = bytes(modified_data)
+        # pub_msg.data = msg.data
+
+        # publish 'filter_points' topic
+        pub.publish(pub_msg)
 
 
 rospy.init_node('filter_node')
