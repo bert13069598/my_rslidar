@@ -88,7 +88,7 @@ def callback(msg):
     pcd2mng.findField()
 
     rospy.loginfo(f"seqence {msg.header.seq}")
-
+    start_time = rospy.Time.now()
     if pcd2mng.isOffset():
         rospy.loginfo(f"points num  {pcd2mng.height}")
 
@@ -100,6 +100,8 @@ def callback(msg):
 
         pcd2mng.setPubPC2(data=pcd2mng.pub_data)
         del pcd2mng
+    end_time = rospy.Time.now()
+    rospy.loginfo("Callback execution time: %f seconds" % (end_time - start_time).to_sec())
         
 
 rospy.init_node('filter_node')
