@@ -42,14 +42,10 @@ class PointCloud2Manager:
         self.i_offset = next((f.offset for f in self.fields if f.name == 'intensity'), None) # 3
 
     def decoding(self):
-        rows = len(self.sub_data) // self.point_step
-        array=np.empty((rows, 4), dtype=np.float32)
-        for idx in range(rows):
-            array[idx,0] = struct.unpack('f', self.sub_data[idx * self.point_step + self.x_offset:idx * self.point_step + self.x_offset + 4])[0]
-            array[idx,1] = struct.unpack('f', self.sub_data[idx * self.point_step + self.y_offset:idx * self.point_step + self.y_offset + 4])[0]
-            array[idx,2] = struct.unpack('f', self.sub_data[idx * self.point_step + self.z_offset:idx * self.point_step + self.z_offset + 4])[0]
-            array[idx,3] = struct.unpack('f', self.sub_data[idx * self.point_step + self.i_offset:idx * self.point_step + self.i_offset + 4])[0]
-        return array
+        num_points = len(self.sub_data) // self.point_step
+        dtype = np.dtype([('x', '<f4'), ('y', '<f4'), ('z', '<f4'), ('intensity', '<f4')])
+        array = np.frombuffer(self.sub_data, dtype=dtype, count=num_points).copy()
+        return array.view(np.float32).reshape(-1, 4)
     
     def encoding(self, array):
         for x,y,z,i in array:
