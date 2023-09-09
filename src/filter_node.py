@@ -5,6 +5,41 @@ from sensor_msgs.msg import PointCloud2
 import struct
 import numpy as np
 
+prev_data_np = np.empty((0, 4), dtype=np.float32)
+
+
+def dynamic_detection(array):
+    global prev_data_np
+
+    r, c = array.shape
+    if np.array_equal(array, prev_data_np) or prev_data_np is None:
+        return np.zeros((r, c), dtype=array.dtype)
+
+    r2, _ = prev_data_np.shape
+    if r > r2:
+        zeros_to_add = np.zeros((r - r2, 4), dtype=array.dtype)
+        prev_data_np = np.vstack((prev_data_np, zeros_to_add))
+    elif r < r2:
+        prev_data_np = prev_data_np[:r, :]
+
+    x1, y1, z1, _ = np.split(array, 4, axis=1)
+    x2, y2, z2, _ = np.split(prev_data_np, 4, axis=1)
+
+    distance = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2)
+
+    threshold_distance = 0.02
+
+    filtered_indices = np.where(distance >= threshold_distance)[0]
+
+    mask = np.ones(r, dtype=np.float32)
+    mask[filtered_indices] = 0.0
+    array *= mask[:, np.newaxis]
+
+    print('filtered_array', array.shape)
+
+    return array
+
+
 class PointCloud2Manager:
     def __init__(self, msg):
         self.msg = msg
@@ -43,22 +78,22 @@ class PointCloud2Manager:
 
     def decoding(self):
         rows = len(self.sub_data) // self.point_step
-        array=np.empty((rows, 4), dtype=np.float32)
+        array = np.empty((rows, 4), dtype=np.float32)
         for idx in range(rows):
             array[idx,0] = struct.unpack('f', self.sub_data[idx * self.point_step + self.x_offset:idx * self.point_step + self.x_offset + 4])[0]
             array[idx,1] = struct.unpack('f', self.sub_data[idx * self.point_step + self.y_offset:idx * self.point_step + self.y_offset + 4])[0]
             array[idx,2] = struct.unpack('f', self.sub_data[idx * self.point_step + self.z_offset:idx * self.point_step + self.z_offset + 4])[0]
             array[idx,3] = struct.unpack('f', self.sub_data[idx * self.point_step + self.i_offset:idx * self.point_step + self.i_offset + 4])[0]
         return array
-    
+
     def encoding(self, array):
-        for x,y,z,i in array:
+        for x, y, z, i in array:
             self.pub_data.extend(struct.pack('f', x))
             self.pub_data.extend(struct.pack('f', y))
             self.pub_data.extend(struct.pack('f', z))
             self.pub_data.extend(struct.pack('f', i))
-    
-    def setPubPC2(self, 
+
+    def setPubPC2(self,
                   header=None,
                   fields=None,
                   height=None,
@@ -80,29 +115,30 @@ class PointCloud2Manager:
         pub_msg.data = self.sub_data if data is None else data
         pub.publish(pub_msg)
 
-        
-
 
 def callback(msg):
+    global prev_data_np
+
     pcd2mng = PointCloud2Manager(msg)
     pcd2mng.findField()
 
-    rospy.loginfo(f"seqence {msg.header.seq}")
-    start_time = rospy.Time.now()
+    rospy.loginfo(f"seqence {pcd2mng.header.seq}")
+    # start_time = rospy.Time.now()
     if pcd2mng.isOffset():
         rospy.loginfo(f"points num  {pcd2mng.height}")
 
         sub_data_np = pcd2mng.decoding()
 
-        sub_data_np[:,2] *= 4.
+        sub_data_np = dynamic_detection(sub_data_np)
+        prev_data_np = sub_data_np
 
         pcd2mng.encoding(sub_data_np)
 
-        pcd2mng.setPubPC2(data=pcd2mng.pub_data)
+        pcd2mng.setPubPC2(height=len(sub_data_np) // 32, data=pcd2mng.pub_data)
         del pcd2mng
-    end_time = rospy.Time.now()
-    rospy.loginfo("Callback execution time: %f seconds" % (end_time - start_time).to_sec())
-        
+    # end_time = rospy.Time.now()
+    # rospy.loginfo("Callback execution time: %f seconds" % (end_time - start_time).to_sec())
+
 
 rospy.init_node('filter_node')
 
