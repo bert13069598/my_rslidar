@@ -3,6 +3,7 @@
 import rospy
 from sensor_msgs.msg import PointCloud2
 import struct
+import numpy as np
 
 class PointCloud2Manager:
     def __init__(self, msg):
@@ -40,18 +41,22 @@ class PointCloud2Manager:
         self.z_offset = next((f.offset for f in self.fields if f.name == 'z'), None)         # 2
         self.i_offset = next((f.offset for f in self.fields if f.name == 'intensity'), None) # 3
 
-    def decoding(self, idx):
-        x = struct.unpack('f', self.sub_data[idx * self.point_step + self.x_offset:idx * self.point_step + self.x_offset + 4])[0]
-        y = struct.unpack('f', self.sub_data[idx * self.point_step + self.y_offset:idx * self.point_step + self.y_offset + 4])[0]
-        z = struct.unpack('f', self.sub_data[idx * self.point_step + self.z_offset:idx * self.point_step + self.z_offset + 4])[0]
-        i = struct.unpack('f', self.sub_data[idx * self.point_step + self.i_offset:idx * self.point_step + self.i_offset + 4])[0]
-        return x,y,z,i
+    def decoding(self):
+        rows = len(self.sub_data) // self.point_step
+        array=np.empty((rows, 4), dtype=np.float32)
+        for idx in range(rows):
+            array[idx,0] = struct.unpack('f', self.sub_data[idx * self.point_step + self.x_offset:idx * self.point_step + self.x_offset + 4])[0]
+            array[idx,1] = struct.unpack('f', self.sub_data[idx * self.point_step + self.y_offset:idx * self.point_step + self.y_offset + 4])[0]
+            array[idx,2] = struct.unpack('f', self.sub_data[idx * self.point_step + self.z_offset:idx * self.point_step + self.z_offset + 4])[0]
+            array[idx,3] = struct.unpack('f', self.sub_data[idx * self.point_step + self.i_offset:idx * self.point_step + self.i_offset + 4])[0]
+        return array
     
-    def encoding(self, x,y,z,i):
-        self.pub_data.extend(struct.pack('f', x))
-        self.pub_data.extend(struct.pack('f', y))
-        self.pub_data.extend(struct.pack('f', z))
-        self.pub_data.extend(struct.pack('f', i))
+    def encoding(self, array):
+        for x,y,z,i in array:
+            self.pub_data.extend(struct.pack('f', x))
+            self.pub_data.extend(struct.pack('f', y))
+            self.pub_data.extend(struct.pack('f', z))
+            self.pub_data.extend(struct.pack('f', i))
     
     def setPubPC2(self, 
                   header=None,
@@ -86,16 +91,14 @@ def callback(msg):
 
     if pcd2mng.isOffset():
         rospy.loginfo(f"points num  {pcd2mng.height}")
-        
-        for idx in range(len(pcd2mng.sub_data) // pcd2mng.point_step):
-            x, y, z, intensity = pcd2mng.decoding(idx)
 
-            z *= 4
-            
-            pcd2mng.encoding(x, y, z, intensity)
-            
+        sub_data_np = pcd2mng.decoding()
+
+        sub_data_np[:,2] *= 4.
+
+        pcd2mng.encoding(sub_data_np)
+
         pcd2mng.setPubPC2(data=pcd2mng.pub_data)
-        # pcd2mng.setPubPC2()
         del pcd2mng
         
 
