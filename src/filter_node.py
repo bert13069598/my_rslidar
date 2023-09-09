@@ -83,13 +83,13 @@ class PointCloud2Manager:
         return array.view(np.float32).reshape(-1, 4)
     
     def encoding(self, array):
-        for x, y, z, i in array:
-            self.pub_data.extend(struct.pack('f', x))
-            self.pub_data.extend(struct.pack('f', y))
-            self.pub_data.extend(struct.pack('f', z))
-            self.pub_data.extend(struct.pack('f', i))
+        flat_array = array.ravel()
+        binary_data = b''.join(struct.pack('f', value) for value in flat_array)
+        self.pub_data.extend(binary_data)
 
-    def setPubPC2(self,
+
+    
+    def setPubPC2(self, 
                   header=None,
                   fields=None,
                   height=None,
