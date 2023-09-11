@@ -2,7 +2,6 @@
 
 import rospy
 from sensor_msgs.msg import PointCloud2
-import struct
 import numpy as np
 
 class PointCloud2Manager:
@@ -48,8 +47,8 @@ class PointCloud2Manager:
         return array.view(np.float32).reshape(-1, 4)
     
     def encoding(self, array):
-        flat_array = array.ravel()
-        binary_data = b''.join(struct.pack('f', value) for value in flat_array)
+        flat_array = np.transpose(array.ravel())
+        binary_data = flat_array.astype(np.float32).tobytes()
         self.pub_data.extend(binary_data)
 
 
