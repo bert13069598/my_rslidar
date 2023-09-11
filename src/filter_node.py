@@ -12,7 +12,7 @@ def dynamic_detection(array):
     global prev_data_np
 
     r, c = array.shape
-    if np.array_equal(array, prev_data_np) or prev_data_np is None:
+    if prev_data_np is None:
         return np.zeros((r, c), dtype=array.dtype)
 
     r2, _ = prev_data_np.shape
@@ -27,15 +27,13 @@ def dynamic_detection(array):
 
     distance = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2)
 
-    threshold_distance = 0.02
+    threshold_distance = 1e-8
 
     filtered_indices = np.where(distance >= threshold_distance)[0]
 
     mask = np.ones(r, dtype=np.float32)
     mask[filtered_indices] = 0.0
     array *= mask[:, np.newaxis]
-
-    print('filtered_array', array.shape)
 
     return array
 
@@ -121,7 +119,7 @@ def callback(msg):
     rospy.loginfo(f"seqence {pcd2mng.header.seq}")
     # start_time = rospy.Time.now()
     if pcd2mng.isOffset():
-        rospy.loginfo(f"points num  {pcd2mng.height}")
+        # rospy.loginfo(f"points num  {pcd2mng.height}")
 
         sub_data_np = pcd2mng.decoding()
 
