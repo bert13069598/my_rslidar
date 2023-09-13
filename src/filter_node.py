@@ -47,7 +47,7 @@ class PointCloud2Manager:
         return array.view(np.float32).reshape(-1, 4)
     
     def encoding(self, array):
-        flat_array = np.transpose(array.ravel())
+        flat_array = array.ravel().T
         binary_data = flat_array.astype(np.float32).tobytes()
         self.pub_data.extend(binary_data)
 
