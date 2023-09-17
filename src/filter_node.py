@@ -69,9 +69,9 @@ class PointCloud2Manager:
     def findField(self):
         # find field index
         self.x_offset = next((f.offset for f in self.fields if f.name == 'x'), None)         # 0
-        self.y_offset  = next((f.offset for f in self.fields if f.name == 'y'), None)        # 1
-        self.z_offset = next((f.offset for f in self.fields if f.name == 'z'), None)         # 2
-        self.i_offset = next((f.offset for f in self.fields if f.name == 'intensity'), None) # 3
+        self.y_offset  = next((f.offset for f in self.fields if f.name == 'y'), None)        # 4
+        self.z_offset = next((f.offset for f in self.fields if f.name == 'z'), None)         # 8
+        self.i_offset = next((f.offset for f in self.fields if f.name == 'intensity'), None) # 12
 
     def decoding(self):
         num_points = len(self.sub_data) // self.point_step
