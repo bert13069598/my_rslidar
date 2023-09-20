@@ -1,0 +1,10 @@
+<launch>
+  <!-- rosbag -->
+  <node name="play_bag" pkg="rosbag" type="play" args="--loop /home/bert/lidar_ws/my_points.bag" />
+
+  <node pkg="my_rslidar" name="filter_node" type="filter_node.py" output="screen" />
+  <!-- rviz -->
+  <node pkg="rviz" name="rviz_sdk" type="rviz" args="-d $(find rslidar_sdk)/rviz/rviz.rviz" />
+  <node pkg="rviz" name="rviz_dynamic" type="rviz" args="-d $(find my_rslidar)/rviz/rviz.rviz" />
+  
+</launch>
