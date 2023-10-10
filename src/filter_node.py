@@ -6,8 +6,10 @@ import numpy as np
 
 prev_data_np = np.empty((0, 4), dtype=np.float32)
 
-
+i=0
 def dynamic_detection(array):
+    global i
+    i+=1
     global prev_data_np
 
     r, c = array.shape
@@ -28,7 +30,10 @@ def dynamic_detection(array):
 
     threshold_distance = 40
 
+    all = np.where(array)[0]
     filtered_indices = np.where(distance < threshold_distance)[0]
+    print(len(array), len(set(all)-set(filtered_indices)))
+    np.savetxt(f'/home/bert/lidar_ws/log/{i}.txt',array[np.array(list(set(all)-set(filtered_indices)))])
 
     mask = np.ones(r, dtype=np.float32)
     mask[filtered_indices] = 0.0
