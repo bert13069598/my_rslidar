@@ -24,11 +24,11 @@ def dynamic_detection(array):
     x1, y1, z1, _ = np.split(array, 4, axis=1)
     x2, y2, z2, _ = np.split(prev_data_np, 4, axis=1)
 
-    distance = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2)
+    distance = (x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2
 
-    threshold_distance = 1e-8
+    threshold_distance = 40
 
-    filtered_indices = np.where(distance >= threshold_distance)[0]
+    filtered_indices = np.where(distance < threshold_distance)[0]
 
     mask = np.ones(r, dtype=np.float32)
     mask[filtered_indices] = 0.0
