@@ -26,17 +26,29 @@ def dynamic_detection(array):
     x1, y1, z1, _ = np.split(array, 4, axis=1)
     x2, y2, z2, _ = np.split(prev_data_np, 4, axis=1)
 
+    prev_data_np = array
+
     distance = (x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2
 
-    threshold_distance = 40
+    threshold_distance = 2
 
     all = np.where(array)[0]
     filtered_indices = np.where(distance < threshold_distance)[0]
-    print(len(array), len(set(all)-set(filtered_indices)))
-    np.savetxt(f'/home/bert/lidar_ws/log/{i}.txt',array[np.array(list(set(all)-set(filtered_indices)))])
+    nan_indices = np.array(list(set(np.where(np.isnan(array))[0])))
+    nan_dist_indices = np.where(np.isnan(distance))[0]
+
+    # filtered_pcd = array[np.array(list(set(all)-set(filtered_indices)-set(nan_indices)-set(nan_dist_indices)))]
+    # filtered_dist = distance[np.array(list(set(all)-set(filtered_indices)-set(nan_dist_indices)))]
+
+    # np.savetxt(f'/home/bert/lidar_ws/log/{i}.txt', nan_indices, fmt='%f')
+    # np.savetxt(f'/home/bert/lidar_ws/log/{i}.txt', filtered_dist)
+    # np.savetxt(f'/home/bert/lidar_ws/log/{i}.txt', distance, fmt='%f')
+
 
     mask = np.ones(r, dtype=np.float32)
     mask[filtered_indices] = 0.0
+    # mask[nan_indices] = 0.0
+    mask[nan_dist_indices] = 0.0
     array *= mask[:, np.newaxis]
 
     return array
@@ -124,7 +136,6 @@ def callback(msg):
         sub_data_np = pcd2mng.decoding()
 
         sub_data_np = dynamic_detection(sub_data_np)
-        prev_data_np = sub_data_np
 
         pcd2mng.encoding(sub_data_np)
 
