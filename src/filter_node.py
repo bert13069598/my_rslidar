@@ -58,6 +58,8 @@ class AveragePooling:
         mask = np.concatenate((mask, nan_arr), axis=1)
         mask = np.tile(mask, (4, 1, 1))
         filtered_array = np.where(mask, self.array, np.nan)
+        
+        filtered_array[:, -2:, :] = np.nan
         return np.transpose(filtered_array, (1, 2, 0)).reshape(-1, 4)
 
 
