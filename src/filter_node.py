@@ -1,8 +1,80 @@
 #!/usr/bin/env python3
 
+import numpy as np
 import rospy
 from sensor_msgs.msg import PointCloud2
-import numpy as np
+
+prev_means = np.empty((0, 4), dtype=np.float32)
+
+class AveragePooling:
+    def __init__(self, array):
+        self.channel = 32
+        self.kernel = 3
+        self.threshold = 0.5
+        self.ap_r = None
+
+        self.array = array[np.newaxis, :, :]
+        self.array = np.transpose(self.array, (2, 0, 1)).reshape(4, -1, self.channel)
+        self.means = self.get_means()
+
+    def get_means(self):
+        # 1D: x,y,z,i
+        # 2D: horizontal
+        # 3D: channel(vertical)
+        _, col, _ = self.array.shape
+
+        # average pooling
+        ap_c, self.ap_r = col // self.kernel, col % self.kernel
+        # print(f'{col} % {self.kernel} = {ap_c} + {self.ap_r}')
+        ap_idx = np.arange(0, self.kernel * ap_c).reshape(ap_c, self.kernel).T
+        return np.nanmean(self.array[:, ap_idx, :], axis=1)
+
+    def sync_means(self):
+        global prev_means
+
+        _, r1, _ = self.means.shape
+        _, r2, _ = prev_means.shape
+        if r1 > r2:
+            nan_arr = np.full_like(np.empty((4, 1, 32), dtype=np.float32), np.nan)
+            nan_arr = np.repeat(nan_arr, r1 - r2, axis=1)
+            prev_means = np.concatenate((prev_means, nan_arr), axis=1)
+        elif r1 < r2:
+            prev_means = prev_means[:, :r1, :]
+        _, r1, _ = self.means.shape
+        _, r2, _ = prev_means.shape
+        
+
+    def filtering(self):
+        global prev_means
+
+        # d = x**2 + y**2 + z**2
+        distance = np.sum((self.means[:3, :, :] - prev_means[:3, :, :]) ** 2, axis=0)
+
+        prev_means = self.means
+
+        # filtering
+        mask = np.repeat(self.threshold < distance, self.kernel, axis=0)[np.newaxis, :]
+        nan_arr = np.full_like(np.empty((1, self.ap_r, 32), dtype=np.float32), np.nan)
+        mask = np.concatenate((mask, nan_arr), axis=1)
+        mask = np.tile(mask, (4, 1, 1))
+        filtered_array = np.where(mask, self.array, np.nan)
+        
+        filtered_array[:, -2:, :] = np.nan
+        return np.transpose(filtered_array, (1, 2, 0)).reshape(-1, 4)
+
+
+def dynamic_detection(array):
+    global prev_means
+
+    ap = AveragePooling(array)
+
+    if len(prev_means) == 0:
+        prev_means = ap.means
+        return np.full_like(array, np.nan)
+
+    ap.sync_means()
+    return ap.filtering()
+
 
 class PointCloud2Manager:
     def __init__(self, msg):
@@ -36,7 +108,7 @@ class PointCloud2Manager:
     def findField(self):
         # find field index
         self.x_offset = next((f.offset for f in self.fields if f.name == 'x'), None)         # 0
-        self.y_offset  = next((f.offset for f in self.fields if f.name == 'y'), None)        # 4
+        self.y_offset = next((f.offset for f in self.fields if f.name == 'y'), None)         # 4
         self.z_offset = next((f.offset for f in self.fields if f.name == 'z'), None)         # 8
         self.i_offset = next((f.offset for f in self.fields if f.name == 'intensity'), None) # 12
 
@@ -71,29 +143,27 @@ class PointCloud2Manager:
         pub_msg.data = self.sub_data if data is None else data
         pub.publish(pub_msg)
 
-        
-
 
 def callback(msg):
+    global prev_data_np
+
     pcd2mng = PointCloud2Manager(msg)
     pcd2mng.findField()
 
-    rospy.loginfo(f"seqence {msg.header.seq}")
+    rospy.loginfo(f"seqence {pcd2mng.header.seq}")
     start_time = rospy.Time.now()
     if pcd2mng.isOffset():
-        rospy.loginfo(f"points num  {pcd2mng.height}")
-
         sub_data_np = pcd2mng.decoding()
 
-        sub_data_np[:,2] *= 4.
+        sub_data_np = dynamic_detection(sub_data_np)
 
         pcd2mng.encoding(sub_data_np)
 
-        pcd2mng.setPubPC2(data=pcd2mng.pub_data)
+        pcd2mng.setPubPC2(height=len(sub_data_np) // 32, data=pcd2mng.pub_data)
         del pcd2mng
     end_time = rospy.Time.now()
     rospy.loginfo("Callback execution time: %f seconds" % (end_time - start_time).to_sec())
-        
+
 
 rospy.init_node('filter_node')
 

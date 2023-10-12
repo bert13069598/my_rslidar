@@ -1,4 +1,5 @@
 <launch>
+  <!-- rslidar_sdk -->
   <node pkg="rslidar_sdk" name="rslidar_sdk_node" type="rslidar_sdk_node">
     <param name="config_path" value=""/>
   </node>
@@ -6,4 +7,7 @@
   <!-- rviz -->
   <node pkg="rviz" name="rviz_sdk" type="rviz" args="-d $(find rslidar_sdk)/rviz/rviz.rviz" />
   <node pkg="rviz" name="rviz_dynamic" type="rviz" args="-d $(find my_rslidar)/rviz/rviz.rviz" />
+  <!-- rosbag -->
+  <!-- <node name="record_bag" pkg="rosbag" type="record" args="-O /home/bert/lidar_ws/my_points /rslidar_points" output="screen" /> -->
+  <!-- <node name="record_bag" pkg="rosbag" type="record" args="-O /home/bert/lidar_ws/my_filtered_points /filter_points" output="screen" /> -->
 </launch>
