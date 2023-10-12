@@ -9,8 +9,8 @@ prev_means = np.empty((0, 4), dtype=np.float32)
 class AveragePooling:
     def __init__(self, array):
         self.channel = 32
-        self.kernel = 2
-        self.threshold = 0.2
+        self.kernel = 3
+        self.threshold = 0.5
         self.ap_r = None
 
         self.array = array[np.newaxis, :, :]
@@ -24,10 +24,9 @@ class AveragePooling:
         _, col, _ = self.array.shape
 
         # average pooling
-        kernel = 2
-        ap_c, self.ap_r = col // kernel, col % kernel
-        # print(f'{col} % 2 = {ap_c} + {self.ap_r}')
-        ap_idx = np.arange(0, kernel * ap_c).reshape(ap_c, kernel).T
+        ap_c, self.ap_r = col // self.kernel, col % self.kernel
+        # print(f'{col} % {self.kernel} = {ap_c} + {self.ap_r}')
+        ap_idx = np.arange(0, self.kernel * ap_c).reshape(ap_c, self.kernel).T
         return np.nanmean(self.array[:, ap_idx, :], axis=1)
 
     def sync_means(self):
@@ -107,7 +106,7 @@ class PointCloud2Manager:
     def findField(self):
         # find field index
         self.x_offset = next((f.offset for f in self.fields if f.name == 'x'), None)         # 0
-        self.y_offset = next((f.offset for f in self.fields if f.name == 'y'), None)        # 4
+        self.y_offset = next((f.offset for f in self.fields if f.name == 'y'), None)         # 4
         self.z_offset = next((f.offset for f in self.fields if f.name == 'z'), None)         # 8
         self.i_offset = next((f.offset for f in self.fields if f.name == 'intensity'), None) # 12
 
