@@ -1,40 +1,78 @@
 #!/usr/bin/env python3
 
+import numpy as np
 import rospy
 from sensor_msgs.msg import PointCloud2
-import numpy as np
 
-prev_data_np = np.empty((0, 4), dtype=np.float32)
+prev_means = np.empty((0, 4), dtype=np.float32)
+
+class AveragePooling:
+    def __init__(self, array):
+        self.channel = 32
+        self.kernel = 2
+        self.threshold = 0.2
+        self.ap_r = None
+
+        self.array = array[np.newaxis, :, :]
+        self.array = np.transpose(self.array, (2, 0, 1)).reshape(4, -1, self.channel)
+        self.means = self.get_means()
+
+    def get_means(self):
+        # 1D: x,y,z,i
+        # 2D: horizontal
+        # 3D: channel(vertical)
+        _, col, _ = self.array.shape
+
+        # average pooling
+        kernel = 2
+        ap_c, self.ap_r = col // kernel, col % kernel
+        # print(f'{col} % 2 = {ap_c} + {self.ap_r}')
+        ap_idx = np.arange(0, kernel * ap_c).reshape(ap_c, kernel).T
+        return np.nanmean(self.array[:, ap_idx, :], axis=1)
+
+    def sync_means(self):
+        global prev_means
+
+        _, r1, _ = self.means.shape
+        _, r2, _ = prev_means.shape
+        if r1 > r2:
+            nan_arr = np.full_like(np.empty((4, 1, 32), dtype=np.float32), np.nan)
+            nan_arr = np.repeat(nan_arr, r1 - r2, axis=1)
+            prev_means = np.concatenate((prev_means, nan_arr), axis=1)
+        elif r1 < r2:
+            prev_means = prev_means[:, :r1, :]
+        _, r1, _ = self.means.shape
+        _, r2, _ = prev_means.shape
+        
+
+    def filtering(self):
+        global prev_means
+
+        # d = x**2 + y**2 + z**2
+        distance = np.sum((self.means[:3, :, :] - prev_means[:3, :, :]) ** 2, axis=0)
+
+        prev_means = self.means
+
+        # filtering
+        mask = np.repeat(self.threshold < distance, self.kernel, axis=0)[np.newaxis, :]
+        nan_arr = np.full_like(np.empty((1, self.ap_r, 32), dtype=np.float32), np.nan)
+        mask = np.concatenate((mask, nan_arr), axis=1)
+        mask = np.tile(mask, (4, 1, 1))
+        filtered_array = np.where(mask, self.array, np.nan)
+        return np.transpose(filtered_array, (1, 2, 0)).reshape(-1, 4)
 
 
 def dynamic_detection(array):
-    global prev_data_np
+    global prev_means
 
-    r, c = array.shape
-    if prev_data_np is None:
-        return np.zeros((r, c), dtype=array.dtype)
+    ap = AveragePooling(array)
 
-    r2, _ = prev_data_np.shape
-    if r > r2:
-        zeros_to_add = np.zeros((r - r2, 4), dtype=array.dtype)
-        prev_data_np = np.vstack((prev_data_np, zeros_to_add))
-    elif r < r2:
-        prev_data_np = prev_data_np[:r, :]
+    if len(prev_means) == 0:
+        prev_means = ap.means
+        return np.full_like(array, np.nan)
 
-    x1, y1, z1, _ = np.split(array, 4, axis=1)
-    x2, y2, z2, _ = np.split(prev_data_np, 4, axis=1)
-
-    distance = (x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2
-
-    threshold_distance = 40
-
-    filtered_indices = np.where(distance < threshold_distance)[0]
-
-    mask = np.ones(r, dtype=np.float32)
-    mask[filtered_indices] = 0.0
-    array *= mask[:, np.newaxis]
-
-    return array
+    ap.sync_means()
+    return ap.filtering()
 
 
 class PointCloud2Manager:
@@ -69,7 +107,7 @@ class PointCloud2Manager:
     def findField(self):
         # find field index
         self.x_offset = next((f.offset for f in self.fields if f.name == 'x'), None)         # 0
-        self.y_offset  = next((f.offset for f in self.fields if f.name == 'y'), None)        # 4
+        self.y_offset = next((f.offset for f in self.fields if f.name == 'y'), None)        # 4
         self.z_offset = next((f.offset for f in self.fields if f.name == 'z'), None)         # 8
         self.i_offset = next((f.offset for f in self.fields if f.name == 'intensity'), None) # 12
 
@@ -112,21 +150,18 @@ def callback(msg):
     pcd2mng.findField()
 
     rospy.loginfo(f"seqence {pcd2mng.header.seq}")
-    # start_time = rospy.Time.now()
+    start_time = rospy.Time.now()
     if pcd2mng.isOffset():
-        # rospy.loginfo(f"points num  {pcd2mng.height}")
-
         sub_data_np = pcd2mng.decoding()
 
         sub_data_np = dynamic_detection(sub_data_np)
-        prev_data_np = sub_data_np
 
         pcd2mng.encoding(sub_data_np)
 
         pcd2mng.setPubPC2(height=len(sub_data_np) // 32, data=pcd2mng.pub_data)
         del pcd2mng
-    # end_time = rospy.Time.now()
-    # rospy.loginfo("Callback execution time: %f seconds" % (end_time - start_time).to_sec())
+    end_time = rospy.Time.now()
+    rospy.loginfo("Callback execution time: %f seconds" % (end_time - start_time).to_sec())
 
 
 rospy.init_node('filter_node')
